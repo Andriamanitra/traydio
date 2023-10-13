@@ -20,7 +20,9 @@ fn read_stations_from_file<P: AsRef<Path>>(
 }
 
 fn stop_playback() -> Result<std::process::Child, std::io::Error> {
-    Command::new("playerctl").args(vec!["stop"]).spawn()
+    Command::new("playerctl")
+        .args(vec!["--player", "mpv", "stop"])
+        .spawn()
 }
 
 fn main() {
@@ -28,14 +30,11 @@ fn main() {
     let stations_file = xdg_dirs.get_config_file("stations.json");
     let errmsg = format!("unable to read {stations_file:?}");
     let stations = read_stations_from_file(stations_file).expect(&errmsg);
+    let icon = IconSource::Resource("media-playback-start-symbolic");
 
     gtk::init().unwrap();
 
-    let mut tray = TrayItem::new(
-        "traydio",
-        IconSource::Resource("media-playback-start-symbolic"),
-    )
-    .unwrap();
+    let mut tray = TrayItem::new("traydio", icon).unwrap();
 
     for station in stations {
         tray.add_menu_item(&station.name, move || {
@@ -58,6 +57,7 @@ fn main() {
 
     tray.add_menu_item("Quit", || {
         stop_playback().expect("unable to run playerctl");
+
         unsafe {
             gtk_sys::gtk_main_quit();
         }
