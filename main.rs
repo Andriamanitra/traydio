@@ -1,22 +1,25 @@
-use serde::Deserialize;
-use tray_item::{IconSource, TrayItem};
-
-use std::path::Path;
 use std::process::Command;
+use tray_item::{IconSource, TrayItem};
+use kdl::{KdlNode, KdlDocument};
 
-#[derive(Deserialize, Debug)]
 struct RadioStation {
     name: String,
     url: String,
 }
 
-fn read_stations_from_file<P: AsRef<Path>>(
-    path: P,
-) -> Result<Vec<RadioStation>, Box<dyn std::error::Error>> {
-    let file = std::fs::File::open(path)?;
-    let reader = std::io::BufReader::new(file);
-    let stations: Vec<RadioStation> = serde_json::from_reader(reader)?;
-    Ok(stations)
+impl From<&KdlNode> for RadioStation {
+    fn from(node: &KdlNode) -> Self {
+        RadioStation {
+            name: node.name().value().to_owned(),
+            url: node
+                .get("url")
+                .expect("missing radio station url")
+                .value()
+                .as_string()
+                .expect("radio station url should be a string")
+                .to_owned(),
+        }
+    }
 }
 
 fn stop_playback() -> Result<std::process::Child, std::io::Error> {
@@ -25,16 +28,17 @@ fn stop_playback() -> Result<std::process::Child, std::io::Error> {
         .spawn()
 }
 
-fn main() {
-    let xdg_dirs = xdg::BaseDirectories::with_prefix("traydio").expect("xdg failed");
-    let stations_file = xdg_dirs.get_config_file("stations.json");
-    let errmsg = format!("unable to read {stations_file:?}");
-    let stations = read_stations_from_file(stations_file).expect(&errmsg);
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let xdg_dirs = xdg::BaseDirectories::with_prefix("traydio")?;
+    let stations_file = xdg_dirs.get_config_file("stations.kdl");
+    let doc = std::fs::read_to_string(&stations_file)
+        .unwrap_or_else(|_| panic!("unable to read {stations_file:?}"))
+        .parse::<KdlDocument>()?;
+    let stations: Vec<RadioStation> = doc.nodes().iter().map(|n| n.into()).collect();
     let icon = IconSource::Resource("media-playback-start-symbolic");
 
-    gtk::init().unwrap();
-
-    let mut tray = TrayItem::new("traydio", icon).unwrap();
+    gtk::init()?;
+    let mut tray = TrayItem::new("traydio", icon)?;
 
     for station in stations {
         tray.add_menu_item(&station.name, move || {
@@ -44,25 +48,22 @@ fn main() {
                 .args(vec![&station.url])
                 .spawn()
                 .expect("unable to run mpv");
-        })
-        .unwrap();
+        })?;
     }
 
-    tray.add_label("🎶🎶🎶🎶🎶🎶🎶").unwrap();
+    tray.add_label("🎶🎶🎶🎶🎶🎶🎶")?;
 
     tray.add_menu_item("Stop playback", || {
         stop_playback().expect("unable to run playerctl");
-    })
-    .unwrap();
+    })?;
 
     tray.add_menu_item("Quit", || {
         stop_playback().expect("unable to run playerctl");
-
         unsafe {
             gtk_sys::gtk_main_quit();
         }
-    })
-    .unwrap();
+    })?;
 
     gtk::main();
+    Ok(())
 }
