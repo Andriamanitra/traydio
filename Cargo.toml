@@ -1,14 +1,12 @@
 [package]
 name = "traydio"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 
 [dependencies]
-tray-item = { version = "0.8.0", features = ["ksni"] }
-gtk = "0.15"
-gtk-sys = "0.15"
 xdg = "2.5.2"
 kdl = "4.6.0"
+ksni = "0.2.1"
 
 [[bin]]
 name = "traydio"

@@ -1,6 +1,6 @@
 # traydio
 
-Play internet radios from the system tray on Linux, implemented in 69 lines of Rust (nice).
+Play internet radios from the system tray on Linux.
 
 ## Configuration:
 
