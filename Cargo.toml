@@ -8,6 +8,10 @@ xdg = "2.5.2"
 kdl = "4.6.0"
 ksni = "0.2.1"
 
+[profile.release]
+strip = true
+lto = true
+
 [[bin]]
 name = "traydio"
 path = "main.rs"
