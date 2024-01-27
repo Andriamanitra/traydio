@@ -4,20 +4,29 @@ use kdl::{KdlDocument, KdlNode};
 use ksni;
 use std::process::Command;
 
+#[derive(Default)]
 struct Traydio {
-    current: Option<usize>,
     stations: Vec<RadioStation>,
+    current: Option<usize>,
+    mpv: Option<std::process::Child>,
 }
 
 impl Traydio {
+    fn from_stations(stations: Vec<RadioStation>) -> Self {
+        Self { stations, ..Default::default() }
+    }
+
     fn change_station(&mut self, idx: usize) {
-        stop_playback().expect("unable to run playerctl");
+        stop_playback();
         if let Some(station) = self.stations.get(idx) {
             self.current = Some(idx);
-            Command::new("mpv")
+            let mpv = Command::new("mpv")
                 .args(vec![&station.url])
                 .spawn()
                 .expect("unable to run mpv");
+            if let Some(mut old_mpv) = self.mpv.replace(mpv) {
+                old_mpv.wait().expect("unable to wait on old mpv");
+            }
         } else {
             eprintln!("Error: no station at index {}", idx);
             self.current = None;
@@ -71,7 +80,7 @@ impl ksni::Tray for Traydio {
             StandardItem {
                 label: "Stop".into(),
                 activate: Box::new(|this: &mut Self| {
-                    stop_playback().expect("unable to run playerctl");
+                    stop_playback();
                     this.current = None;
                 }),
                 ..Default::default()
@@ -80,7 +89,7 @@ impl ksni::Tray for Traydio {
             StandardItem {
                 label: "Quit".into(),
                 activate: Box::new(|_: &mut Self| {
-                    stop_playback().expect("unable to run playerctl");
+                    stop_playback();
                     std::process::exit(0);
                 }),
                 ..Default::default()
@@ -116,10 +125,13 @@ impl TryFrom<&KdlNode> for RadioStation {
     }
 }
 
-fn stop_playback() -> Result<std::process::Child, std::io::Error> {
+fn stop_playback() {
     Command::new("playerctl")
         .args(vec!["--player", "mpv", "stop"])
         .spawn()
+        .expect("unable to run playerctl")
+        .wait()
+        .expect("playerctl wasn't running");
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -146,7 +158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let service = ksni::TrayService::new(Traydio { stations, current: None });
+    let service = ksni::TrayService::new(Traydio::from_stations(stations));
     service.spawn();
 
     loop {
