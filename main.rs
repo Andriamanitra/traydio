@@ -43,9 +43,8 @@ impl ksni::Tray for Traydio {
         println!("Changing to next station");
         self.change_station(match self.current {
             Some(i) => (i + 1) % self.stations.len(),
-            None => 0
+            None => 0,
         });
-        
     }
 
     fn title(&self) -> String {
@@ -116,11 +115,10 @@ impl TryFrom<&KdlNode> for RadioStation {
     fn try_from(node: &KdlNode) -> Result<Self, Self::Error> {
         let name = node.name().value().to_owned();
         match node.get("url") {
+            Some(entry) if let Some(url) = entry.value().as_string()
+                => Ok(RadioStation { name, url: url.to_owned() }),
+            Some(_) => Err(RadioStationParseError::InvalidUrl(name)),
             None => Err(RadioStationParseError::MissingUrl(name)),
-            Some(entry) if let Some(url) = entry.value().as_string() => {
-                Ok(RadioStation { name, url: url.to_owned() })
-            },
-            Some(_) => Err(RadioStationParseError::InvalidUrl(name))
         }
     }
 }
@@ -150,11 +148,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(RadioStationParseError::MissingUrl(station_name)) => {
                 eprintln!("Skipping {} (Error: missing url)", station_name);
                 None
-            },
+            }
             Err(RadioStationParseError::InvalidUrl(station_name)) => {
                 eprintln!("Skipping {} (Error: invalid url)", station_name);
                 None
-            },
+            }
         })
         .collect();
 
