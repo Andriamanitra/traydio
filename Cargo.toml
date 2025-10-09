@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 xdg = "2.5.2"
 kdl = "4.6.0"
-ksni = "0.2.1"
+ksni = { version = "0.3.1", default-features = false, features = ["async-io", "blocking"] }
 
 [profile.release]
 strip = true

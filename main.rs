@@ -2,6 +2,7 @@
 
 use kdl::{KdlDocument, KdlNode};
 use ksni;
+use ksni::blocking::TrayMethods;
 use std::process::Command;
 
 #[derive(Default)]
@@ -125,7 +126,7 @@ impl TryFrom<&KdlNode> for RadioStation {
 
 fn stop_playback() {
     Command::new("playerctl")
-        .args(vec!["--player", "mpv", "stop"])
+        .args(vec!["--player=mpv", "stop"])
         .spawn()
         .expect("unable to run playerctl")
         .wait()
@@ -156,8 +157,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let service = ksni::TrayService::new(Traydio::from_stations(stations));
-    service.spawn();
+    let _handle = Traydio::from_stations(stations).spawn();
 
     loop {
         std::thread::park();
