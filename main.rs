@@ -1,8 +1,5 @@
-#![feature(if_let_guard)]
-
 use kdl::{KdlDocument, KdlNode};
-use ksni;
-use ksni::blocking::TrayMethods;
+use ksni::TrayMethods;
 use std::process::Command;
 
 #[derive(Default)]
@@ -114,13 +111,11 @@ impl TryFrom<&KdlNode> for RadioStation {
     type Error = RadioStationParseError;
 
     fn try_from(node: &KdlNode) -> Result<Self, Self::Error> {
-        let name = node.name().value().to_owned();
-        match node.get("url") {
-            Some(entry) if let Some(url) = entry.value().as_string()
-                => Ok(RadioStation { name, url: url.to_owned() }),
-            Some(_) => Err(RadioStationParseError::InvalidUrl(name)),
-            None => Err(RadioStationParseError::MissingUrl(name)),
-        }
+        let name = node.name().value();
+        let url = node.get("url").ok_or_else(|| RadioStationParseError::MissingUrl(name.to_string()))?.value();
+        let url = url.as_string().ok_or_else(|| RadioStationParseError::InvalidUrl(name.to_string()))?.to_owned();
+        let name = name.to_string();
+        Ok(RadioStation { name, url })
     }
 }
 
@@ -133,9 +128,10 @@ fn stop_playback() {
         .expect("playerctl wasn't running");
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let xdg_dirs = xdg::BaseDirectories::with_prefix("traydio")?;
-    let stations_file = xdg_dirs.get_config_file("stations.kdl");
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let xdg_dirs = xdg::BaseDirectories::with_prefix("traydio");
+    let stations_file = xdg_dirs.get_config_file("stations.kdl").expect("path to config file should always exist");
 
     let doc = std::fs::read_to_string(&stations_file)
         .unwrap_or_else(|_| panic!("unable to read {stations_file:?}"))
@@ -157,9 +153,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let _handle = Traydio::from_stations(stations).spawn();
-
-    loop {
-        std::thread::park();
-    }
+    Traydio::from_stations(stations).spawn().await?;
+    std::future::pending().await
 }

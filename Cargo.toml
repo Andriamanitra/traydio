@@ -1,12 +1,13 @@
 [package]
 name = "traydio"
-version = "2.1.0"
-edition = "2021"
+version = "3.0.0"
+edition = "2024"
 
 [dependencies]
-xdg = "2.5.2"
+xdg = "3.0.0"
 kdl = "4.6.0"
-ksni = { version = "0.3.1", default-features = false, features = ["async-io", "blocking"] }
+ksni = "0.3.1"
+tokio = "1.47.1"
 
 [profile.release]
 strip = true
