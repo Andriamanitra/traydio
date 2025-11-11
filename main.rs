@@ -1,25 +1,32 @@
 use kdl::{KdlDocument, KdlNode};
 use ksni::TrayMethods;
 use std::process::Command;
+use std::path::PathBuf;
 
 #[derive(Default)]
 struct Traydio {
     stations: Vec<RadioStation>,
+    playlist_arg: std::ffi::OsString,
     current: Option<usize>,
     mpv: Option<std::process::Child>,
 }
 
 impl Traydio {
-    fn from_stations(stations: Vec<RadioStation>) -> Self {
-        Self { stations, ..Default::default() }
+    fn from_stations(stations: Vec<RadioStation>, playlist: PathBuf) -> Self {
+        let mut playlist_arg = std::ffi::OsString::from("--playlist=");
+        playlist_arg.push(playlist.as_os_str());
+        Self { stations, playlist_arg, ..Default::default() }
     }
 
     fn change_station(&mut self, idx: usize) {
         stop_playback();
-        if let Some(station) = self.stations.get(idx) {
+        if self.stations.get(idx).is_some() {
             self.current = Some(idx);
+
             let mpv = Command::new("mpv")
-                .args(vec![&station.url])
+                .arg(&self.playlist_arg)
+                .arg(&format!("--playlist-start={idx}"))
+                .arg("--loop-playlist")
                 .spawn()
                 .expect("unable to run mpv");
             if let Some(mut old_mpv) = self.mpv.replace(mpv) {
@@ -153,6 +160,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    Traydio::from_stations(stations).spawn().await?;
+    let playlist = xdg_dirs.place_state_file("stations.playlist").expect("state directory should always be available");
+    let station_urls: Vec<&str> = stations.iter().map(|it| it.url.as_ref()).collect();
+    std::fs::write(&playlist, station_urls.join("\n"))?;
+
+    Traydio::from_stations(stations, playlist).spawn().await?;
     std::future::pending().await
 }
