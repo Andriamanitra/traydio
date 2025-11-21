@@ -1,7 +1,7 @@
 use kdl::{KdlDocument, KdlNode};
 use ksni::TrayMethods;
-use std::process::Command;
 use std::path::PathBuf;
+use std::process::Command;
 
 #[derive(Default)]
 struct Traydio {
@@ -15,7 +15,11 @@ impl Traydio {
     fn from_stations(stations: Vec<RadioStation>, playlist: PathBuf) -> Self {
         let mut playlist_arg = std::ffi::OsString::from("--playlist=");
         playlist_arg.push(playlist.as_os_str());
-        Self { stations, playlist_arg, ..Default::default() }
+        Self {
+            stations,
+            playlist_arg,
+            ..Default::default()
+        }
     }
 
     fn change_station(&mut self, idx: usize) {
@@ -119,8 +123,14 @@ impl TryFrom<&KdlNode> for RadioStation {
 
     fn try_from(node: &KdlNode) -> Result<Self, Self::Error> {
         let name = node.name().value();
-        let url = node.get("url").ok_or_else(|| RadioStationParseError::MissingUrl(name.to_string()))?.value();
-        let url = url.as_string().ok_or_else(|| RadioStationParseError::InvalidUrl(name.to_string()))?.to_owned();
+        let url = node
+            .get("url")
+            .ok_or_else(|| RadioStationParseError::MissingUrl(name.to_string()))?
+            .value();
+        let url = url
+            .as_string()
+            .ok_or_else(|| RadioStationParseError::InvalidUrl(name.to_string()))?
+            .to_owned();
         let name = name.to_string();
         Ok(RadioStation { name, url })
     }
@@ -138,7 +148,9 @@ fn stop_playback() {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let xdg_dirs = xdg::BaseDirectories::with_prefix("traydio");
-    let stations_file = xdg_dirs.get_config_file("stations.kdl").expect("path to config file should always exist");
+    let stations_file = xdg_dirs
+        .get_config_file("stations.kdl")
+        .expect("path to config file should always exist");
 
     let doc = std::fs::read_to_string(&stations_file)
         .unwrap_or_else(|_| panic!("unable to read {stations_file:?}"))
@@ -160,7 +172,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let playlist = xdg_dirs.place_state_file("stations.playlist").expect("state directory should always be available");
+    let playlist = xdg_dirs
+        .place_state_file("stations.playlist")
+        .expect("state directory should always be available");
     let station_urls: Vec<&str> = stations.iter().map(|it| it.url.as_ref()).collect();
     std::fs::write(&playlist, station_urls.join("\n"))?;
 
