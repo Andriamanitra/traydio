@@ -1,5 +1,6 @@
 use kdl::{KdlDocument, KdlNode};
 use ksni::TrayMethods;
+use nanorand::Rng;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -31,6 +32,7 @@ impl Traydio {
                 .arg(&self.playlist_arg)
                 .arg(&format!("--playlist-start={idx}"))
                 .arg("--loop-playlist")
+                .arg("--shuffle")
                 .spawn()
                 .expect("unable to run mpv");
             if let Some(mut old_mpv) = self.mpv.replace(mpv) {
@@ -49,11 +51,10 @@ impl ksni::Tray for Traydio {
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        println!("Changing to next station");
-        self.change_station(match self.current {
-            Some(i) => (i + 1) % self.stations.len(),
-            None => 0,
-        });
+        println!("Changing to random station");
+        let mut rng = nanorand::WyRand::new();
+        let new_idx = rng.generate_range(0..self.stations.len());
+        self.change_station(new_idx);
     }
 
     fn title(&self) -> String {

@@ -1,6 +1,6 @@
 [package]
 name = "traydio"
-version = "3.0.0"
+version = "4.0.0"
 edition = "2024"
 
 [dependencies]
@@ -8,6 +8,7 @@ xdg = "3.0.0"
 kdl = "4.6.0"
 ksni = "0.3.1"
 tokio = "1.47.1"
+nanorand = "=0.8.0"
 
 [profile.release]
 strip = true
