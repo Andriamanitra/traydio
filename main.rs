@@ -4,11 +4,26 @@ use nanorand::Rng;
 use std::path::PathBuf;
 use std::process::Command;
 
+fn html_encode(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => result.push_str("&amp;"),
+            '<' => result.push_str("&lt;"),
+            '>' => result.push_str("&gt;"),
+            '"' => result.push_str("&quot;"),
+            '\'' => result.push_str("&#x27;"),
+            '/' => result.push_str("&#x2F;"),
+            _ => result.push(c),
+        }
+    }
+    result
+}
+
 #[derive(Default)]
 struct Traydio {
     stations: Vec<RadioStation>,
     playlist_arg: std::ffi::OsString,
-    current: Option<usize>,
     mpv: Option<std::process::Child>,
 }
 
@@ -26,8 +41,6 @@ impl Traydio {
     fn change_station(&mut self, idx: usize) {
         stop_playback();
         if self.stations.get(idx).is_some() {
-            self.current = Some(idx);
-
             let mpv = Command::new("mpv")
                 .arg(&self.playlist_arg)
                 .arg(&format!("--playlist-start={idx}"))
@@ -40,8 +53,34 @@ impl Traydio {
             }
         } else {
             eprintln!("Error: no station at index {}", idx);
-            self.current = None;
         }
+    }
+
+    fn current(&self) -> Option<usize> {
+        let output = Command::new("playerctl")
+            .args(["--player=mpv", "metadata", "xesam:url"])
+            .output()
+            .ok()?;
+        let stdout = String::from_utf8(output.stdout).ok()?;
+        let url = stdout.trim_end();
+        self.stations.iter().position(|st| st.url == url)
+    }
+
+    fn now_playing(&self, current: usize) -> Option<String> {
+        let output = Command::new("playerctl")
+            .args(["--player=mpv", "metadata", "xesam:title"])
+            .output()
+            .ok()?;
+        let title = String::from_utf8(output.stdout).ok()?;
+        let title = title.trim_end();
+        if !title.is_empty() {
+            if let Some(station) = self.stations.get(current) {
+                if !station.url.ends_with(&title) {
+                    return Some(html_encode(title))
+                }
+            }
+        }
+        None
     }
 }
 
@@ -51,16 +90,19 @@ impl ksni::Tray for Traydio {
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        println!("Changing to random station");
+        eprintln!("Changing to random station");
         let mut rng = nanorand::WyRand::new();
         let new_idx = rng.generate_range(0..self.stations.len());
         self.change_station(new_idx);
     }
 
     fn title(&self) -> String {
-        if let Some(idx) = self.current {
-            let station = &self.stations[idx];
-            format!("{} – playing {}", "Traydio", station.name)
+        if let Some(idx) = self.current() {
+            let station_name = &self.stations[idx].name;
+            match self.now_playing(idx) {
+                Some(title) => format!("{}\n🎵 {}", station_name, title),
+                None => format!("{}", station_name),
+            }
         } else {
             String::from("Traydio")
         }
@@ -74,7 +116,7 @@ impl ksni::Tray for Traydio {
         use ksni::menu::*;
         vec![
             RadioGroup {
-                selected: self.current.unwrap_or(9001),
+                selected: self.current().unwrap_or(9001),
                 select: Box::new(Traydio::change_station),
                 options: self
                     .stations
@@ -88,9 +130,8 @@ impl ksni::Tray for Traydio {
             .into(),
             StandardItem {
                 label: "Stop".into(),
-                activate: Box::new(|this: &mut Self| {
+                activate: Box::new(|_: &mut Self| {
                     stop_playback();
-                    this.current = None;
                 }),
                 ..Default::default()
             }
